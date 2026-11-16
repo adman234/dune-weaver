@@ -10,6 +10,8 @@ Testing overrides (environment variables):
 import asyncio
 import aiohttp
 import os
+import re
+import subprocess
 import time
 from pathlib import Path
 from typing import Dict
@@ -25,10 +27,36 @@ if FORCE_UPDATE_AVAILABLE or FAKE_LATEST_VERSION:
     logger.warning(f"Version override active: FORCE_UPDATE_AVAILABLE={FORCE_UPDATE_AVAILABLE}, FAKE_LATEST_VERSION={FAKE_LATEST_VERSION}")
 
 
+DEFAULT_REPO = ("adman234", "dune-weaver")
+
+
+def _parse_github_remote(url: str):
+    """Return (owner, repo) from a GitHub remote URL, or None."""
+    m = re.search(r"github\.com[:/]+([^/]+)/([^/]+?)(?:\.git)?/?$", url.strip())
+    return (m.group(1), m.group(2)) if m else None
+
+
+def _detect_repo():
+    """Owner/repo of the install's `origin` remote, so update checks follow
+    whatever repo the install actually pulls from. Override with DW_GITHUB_REPO=owner/name."""
+    override = os.environ.get("DW_GITHUB_REPO", "")
+    if "/" in override:
+        owner, name = override.split("/", 1)
+        return owner, name
+    try:
+        root = Path(__file__).resolve().parent.parent.parent
+        url = subprocess.run(
+            ["git", "-C", str(root), "remote", "get-url", "origin"],
+            capture_output=True, text=True, timeout=5,
+        ).stdout
+        return _parse_github_remote(url) or DEFAULT_REPO
+    except Exception:
+        return DEFAULT_REPO
+
+
 class VersionManager:
     def __init__(self):
-        self.repo_owner = "tuanchris"
-        self.repo_name = "dune-weaver"
+        self.repo_owner, self.repo_name = _detect_repo()
         self.github_api_url = f"https://api.github.com/repos/{self.repo_owner}/{self.repo_name}"
         self._current_version = None
 

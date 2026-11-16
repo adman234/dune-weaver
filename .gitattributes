@@ -4,3 +4,6 @@
 # Keep these as LF regardless of platform
 Dockerfile text eol=lf
 nginx.conf text eol=lf
+
+# dw CLI has no .sh extension
+dw text eol=lf
