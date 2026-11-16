@@ -352,6 +352,37 @@ export function LEDPage() {
     }
   }
 
+  const applyEffectOption = async (settings: EffectSettings) => {
+    const hexToRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) || 0)
+    try {
+      await apiClient.post('/api/dw_leds/colors', {
+        color1: hexToRgb(settings.color1),
+        color2: hexToRgb(settings.color2),
+        color3: hexToRgb(settings.color3),
+      })
+      await apiClient.post('/api/dw_leds/palette', { palette_id: settings.palette_id })
+      const data = await apiClient.post<{ power_on?: boolean }>('/api/dw_leds/effect', {
+        effect_id: settings.effect_id,
+        speed: settings.speed,
+        intensity: settings.intensity,
+      })
+      setSelectedEffect(String(settings.effect_id))
+      setSelectedPalette(String(settings.palette_id))
+      setSpeed(settings.speed)
+      setIntensity(settings.intensity)
+      setColor1(settings.color1)
+      setColor2(settings.color2)
+      setColor3(settings.color3)
+      if (data.power_on !== undefined) {
+        const powerOn = data.power_on
+        setDwStatus((prev) => prev ? { ...prev, power_on: powerOn } : null)
+      }
+      toast.success('Effect applied')
+    } catch {
+      toast.error('Failed to apply effect')
+    }
+  }
+
   const removeEffectOption = async (type: 'idle' | 'playing', index: number) => {
     try {
       await apiClient.post('/api/dw_leds/remove_effect_option', { type, index })
@@ -431,6 +462,14 @@ export function LEDPage() {
                 key={index}
                 className="flex items-center gap-2 text-xs text-muted-foreground p-2 bg-muted/50 rounded border min-h-[40px]"
               >
+                <button
+                  onClick={() => applyEffectOption(settings)}
+                  aria-label={`Apply ${title} option ${index + 1}`}
+                  title="Apply this effect now"
+                  className="shrink-0 text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <span className="material-icons-outlined text-sm align-middle">play_arrow</span>
+                </button>
                 <span className="flex-1">{formatEffectSettings(settings)}</span>
                 <button
                   onClick={() => removeEffectOption(type, index)}
@@ -474,7 +513,7 @@ export function LEDPage() {
             onClick={() => clearEffectSettings(type)}
             disabled={options.length === 0}
           >
-            Clear
+            Clear All
           </Button>
         </div>
       </div>
