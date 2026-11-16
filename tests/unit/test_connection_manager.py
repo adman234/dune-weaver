@@ -280,3 +280,18 @@ class TestIsMachineIdle:
             result = is_machine_idle()
 
         assert result is False
+
+
+class TestCheckIdleTimeout:
+    """check_idle() must give up instead of hanging homing forever (#16)."""
+
+    def test_returns_false_after_timeout(self):
+        from modules.connection import connection_manager as cm
+        with patch.object(cm, "get_status_response", return_value="<Alarm|MPos:0,0,0>"), \
+             patch.object(cm.time, "sleep"):
+            assert cm.check_idle(timeout=0.05) is False
+
+    def test_returns_true_when_idle(self):
+        from modules.connection import connection_manager as cm
+        with patch.object(cm, "get_status_response", return_value="<Idle|MPos:0,0,0>"):
+            assert cm.check_idle(timeout=1) is True

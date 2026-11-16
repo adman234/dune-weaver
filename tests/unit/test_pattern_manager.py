@@ -457,3 +457,22 @@ class TestPlaylistRunModes:
         executed = await self._run_playlist(mock_state, "loop", stop_after=3)
 
         assert executed == ["a.thr", "b.thr", "a.thr"]
+
+
+class TestMidPatternPause:
+    """Manual pause/resume during Still Sands with "finish pattern first" (#13)."""
+
+    @pytest.mark.parametrize("manual,in_period,finish_first,expected", [
+        (True, False, False, True),
+        (False, True, False, True),
+        (False, True, True, False),   # resumed manually inside Still Sands: keep drawing
+        (True, True, True, True),
+        (False, False, True, False),
+    ])
+    def test_mid_pattern_pause_active(self, manual, in_period, finish_first, expected):
+        from types import SimpleNamespace
+        from modules.core import pattern_manager
+        fake_state = SimpleNamespace(pause_requested=manual, scheduled_pause_finish_pattern=finish_first)
+        with patch.object(pattern_manager, "state", fake_state), \
+             patch("modules.core.pattern_manager.is_in_scheduled_pause_period", return_value=in_period):
+            assert pattern_manager.mid_pattern_pause_active() is expected

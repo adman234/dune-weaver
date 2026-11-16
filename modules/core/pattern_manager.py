@@ -260,6 +260,18 @@ def _get_timezone():
 
     return _cached_zoneinfo
 
+def mid_pattern_pause_active():
+    """True while a running pattern should stay paused.
+
+    A manual pause always holds. A Still Sands period only holds mid-pattern
+    when "finish pattern first" is off; otherwise the pattern runs through it
+    and the pause happens between patterns.
+    """
+    if state.pause_requested:
+        return True
+    return not state.scheduled_pause_finish_pattern and is_in_scheduled_pause_period()
+
+
 def is_in_scheduled_pause_period():
     """Check if current time falls within any scheduled pause period."""
     if not state.scheduled_pause_enabled or not state.scheduled_pause_time_slots:
@@ -1301,7 +1313,7 @@ async def _execute_pattern_internal(file_path):
                 # Wait until both manual pause is released AND we're outside scheduled pause period
                 # Also check for stop/skip requests to allow immediate interruption
                 interrupted = False
-                while state.pause_requested or is_in_scheduled_pause_period():
+                while mid_pattern_pause_active():
                     # Check for stop/skip first
                     if state.stop_requested:
                         logger.info("Stop requested during pause, exiting")

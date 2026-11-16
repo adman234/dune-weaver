@@ -1489,8 +1489,13 @@ async def restart(request: ConnectRequest):
 
     try:
         logger.info(f"Restarting connection on port {request.port}")
-        connection_manager.restart_connection()
+        # Serial I/O and sleeps: run off the event loop so the server stays responsive
+        ok = await asyncio.to_thread(connection_manager.restart_connection, port=request.port)
+        if not ok:
+            raise HTTPException(status_code=500, detail=f"Could not reconnect on {request.port}")
         return {"success": True}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to restart serial on port {request.port}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -254,7 +254,7 @@ def device_init(homing=True):
     return True
 
 
-def connect_device(homing=True):
+def connect_device(homing=True, port=None):
     # Initialize LED interface based on configured provider
     # Note: DW LEDs are initialized at startup in main.py, so we preserve the existing controller
     if state.led_provider == "wled" and state.wled_ip:
@@ -289,7 +289,11 @@ def connect_device(homing=True):
     ports = list_serial_ports()
 
     # Check auto-connect mode: "__auto__" or None = auto, "__none__" = disabled, else specific port
-    if state.preferred_port == "__none__":
+    if port:
+        # Explicit port from the caller (e.g. /restart_connection) wins
+        logger.info(f"Connecting to requested port: {port}")
+        state.conn = SerialConnection(port)
+    elif state.preferred_port == "__none__":
         logger.info("Auto-connect disabled by user preference")
         # Skip all auto-connect logic, no connection will be established
     # Priority for auto-connect:
@@ -1226,12 +1230,19 @@ def home(timeout=120):
     logger.info("Homing completed successfully")
     return True
 
-def check_idle():
+def check_idle(timeout: float = 120.0):
     """
-    Continuously check if the device is idle (synchronous version).
+    Poll until the device reports Idle (synchronous version, used by homing).
+
+    Returns False if it doesn't get there within `timeout` seconds (e.g. the
+    controller is stuck in Alarm or the serial link died).
     """
     logger.info("Checking idle")
+    deadline = time.monotonic() + timeout
     while True:
+        if time.monotonic() > deadline:
+            logger.warning(f"Timeout ({timeout}s) waiting for device idle state")
+            return False
         response = get_status_response()
         if response and "Idle" in response:
             logger.info("Device is idle")
@@ -1562,7 +1573,7 @@ def reset_work_coordinates():
         return False
 
 
-def restart_connection(homing=False):
+def restart_connection(homing=False, port=None):
     """
     Restart the connection. If a connection exists, close it and attempt to establish a new one.
     It will try to connect via serial first (if available), otherwise it will fall back to websocket.
@@ -1583,7 +1594,7 @@ def restart_connection(homing=False):
 
     logger.info("Attempting to restart connection...")
     try:
-        connect_device(homing)  # This will set state.conn appropriately.
+        connect_device(homing, port=port)  # This will set state.conn appropriately.
         if (state.conn.is_connected() if state.conn else False):
             logger.info("Connection restarted successfully.")
             return True
