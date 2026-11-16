@@ -13,6 +13,7 @@
 # Options:
 #   --no-wifi-fix   Skip WiFi stability fix
 #   --no-hotspot    Skip autohotspot setup
+#   --usb / --uart  Controller connection (skips the question)
 #   --help          Show help
 #
 
@@ -48,6 +49,14 @@ while [[ $# -gt 0 ]]; do
             SETUP_HOTSPOT=false
             shift
             ;;
+        --usb)
+            CONNECTION_CHOICE=1
+            shift
+            ;;
+        --uart)
+            CONNECTION_CHOICE=2
+            shift
+            ;;
         --help|-h)
             echo "Dune Weaver Raspberry Pi Setup Script"
             echo ""
@@ -60,6 +69,7 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --no-wifi-fix   Skip WiFi stability fix (applied by default)"
             echo "  --no-hotspot    Skip autohotspot setup"
+            echo "  --usb / --uart  Controller connection (skips the question)"
             echo "  --help, -h      Show this help message"
             exit 0
             ;;
@@ -73,6 +83,16 @@ done
 
 # ── Permission helpers ──────────────────────────────────────────────
 # Run a command as the real (non-root) user.
+# Prompts read from the terminal, so they still work under `curl ... | bash`.
+# With no terminal at all, prompts take their defaults.
+if [[ -t 0 ]]; then
+    PROMPT_IN=/dev/stdin
+elif (exec < /dev/tty) 2>/dev/null; then
+    PROMPT_IN=/dev/tty
+else
+    PROMPT_IN=/dev/null
+fi
+
 # When the script is invoked with sudo, commands like git clone, pip install,
 # and venv creation should run as the real user so files are owned correctly
 # from the start — no chown needed afterward.
@@ -126,7 +146,8 @@ install_system_deps() {
 
 # Ensure lgpio C library is available for pip to build against
 install_lgpio() {
-    local syslib="/usr/lib/aarch64-linux-gnu"
+    local syslib
+    syslib="/usr/lib/$(gcc -print-multiarch 2>/dev/null || echo "$(uname -m)-linux-gnu")"
 
     # Raspberry Pi OS Trixie ships liblgpio.so.1 but no unversioned
     # liblgpio.so symlink (normally provided by a -dev package).
@@ -193,7 +214,8 @@ disable_wlan_powersave() {
     print_step "Disabling WLAN power save for better stability..."
 
     # Check if already disabled
-    if iwconfig wlan0 2>/dev/null | grep -q "Power Management:off"; then
+    if iw dev wlan0 get power_save 2>/dev/null | grep -q "Power save: off" \
+        || iwconfig wlan0 2>/dev/null | grep -q "Power Management:off"; then
         echo "WLAN power save already disabled"
         return
     fi
@@ -205,7 +227,8 @@ wifi.powersave = 2
 EOF
 
     # Also try immediate disable
-    sudo iwconfig wlan0 power off 2>/dev/null || true
+    sudo iw dev wlan0 set power_save off 2>/dev/null \
+        || sudo iwconfig wlan0 power off 2>/dev/null || true
 
     print_success "WLAN power save disabled"
 }
@@ -284,7 +307,11 @@ deploy_native() {
     # Install dependencies as real user (pip writes to user-owned .venv)
     print_step "Installing Python packages..."
     run_as_user .venv/bin/pip install --upgrade pip
-    run_as_user .venv/bin/pip install -r requirements.txt
+    if [[ -f constraints.txt ]]; then
+        run_as_user .venv/bin/pip install -r requirements.txt -c constraints.txt
+    else
+        run_as_user .venv/bin/pip install -r requirements.txt
+    fi
 
     # Ensure nginx (www-data) can traverse to static files
     # chmod o+x grants traversal only, not directory listing
@@ -368,7 +395,10 @@ configure_uart() {
     echo ""
     echo -e "  ${YELLOW}Note: USB is not reliable on Pi 3B+. Use UART for Pi 3B+.${NC}"
     echo ""
-    read -p "Enter choice [1/2] (default: 1): " -n 1 -r uart_choice
+    local uart_choice="${CONNECTION_CHOICE:-}"
+    if [[ -z "$uart_choice" ]]; then
+        read -p "Enter choice [1/2] (default: 1): " -n 1 -r uart_choice < "$PROMPT_IN" || uart_choice=1
+    fi
     echo ""
 
     if [[ "$uart_choice" == "2" ]]; then
@@ -381,7 +411,7 @@ configure_uart() {
         echo -e "    Login shell over serial?     →  ${GREEN}No${NC}"
         echo -e "    Serial port hardware?        →  ${GREEN}Yes${NC}"
         echo ""
-        read -p "Press Enter to continue..." -r
+        read -p "Press Enter to continue..." -r < "$PROMPT_IN" || true
         echo ""
 
         # Disable serial console, enable serial hardware
@@ -397,7 +427,7 @@ configure_uart() {
 
         # Add UART overlays to config.txt if not already present
         local needs_change=false
-        for overlay in "dtoverlay=pi3-miniuart-bt" "dtoverlay=miniuart-bt" "enable_uart=1"; do
+        for overlay in "dtoverlay=miniuart-bt" "enable_uart=1"; do
             if ! grep -q "^${overlay}$" "$CONFIG_FILE" 2>/dev/null; then
                 echo "$overlay" | sudo tee -a "$CONFIG_FILE" > /dev/null
                 needs_change=true
@@ -424,7 +454,7 @@ configure_uart() {
 
         if [[ "$has_uart" == "true" ]]; then
             echo -e "${YELLOW}UART overlays found in $CONFIG_FILE from a previous setup.${NC}"
-            read -p "Remove them? (y/N): " -n 1 -r remove_uart
+            read -p "Remove them? (y/N): " -n 1 -r remove_uart < "$PROMPT_IN" || remove_uart=n
             echo ""
             if [[ "$remove_uart" =~ ^[Yy]$ ]]; then
                 sudo sed -i '/^dtoverlay=pi3-miniuart-bt$/d' "$CONFIG_FILE"
@@ -457,7 +487,7 @@ cleanup_unused() {
     if dpkg -l docker-ce 2>/dev/null | grep -q '^ii'; then
         echo "Removing Docker (old deployment method)..."
         # Stop running containers
-        sudo docker stop $(sudo docker ps -aq) 2>/dev/null || true
+        sudo docker ps -aq | xargs -r sudo docker stop 2>/dev/null || true
         sudo apt purge -y docker-ce docker-ce-cli containerd.io docker-compose-plugin 2>/dev/null || true
         sudo rm -rf /var/lib/docker
         sudo apt autoremove -y
@@ -512,7 +542,7 @@ print_final_instructions() {
 
     if [[ "$NEEDS_REBOOT" == "true" ]]; then
         print_warning "A reboot is required to apply configuration changes"
-        read -p "Reboot now? (y/N) " -n 1 -r
+        read -p "Reboot now? (y/N) " -n 1 -r < "$PROMPT_IN" || REPLY=n
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             sudo reboot
@@ -534,11 +564,12 @@ main() {
     echo "Install directory: $INSTALL_DIR"
     echo ""
 
+    check_raspberry_pi
+
     # Ask connection type upfront (before long-running installs)
     configure_uart
 
     # Run setup steps
-    check_raspberry_pi
     install_system_deps
     ensure_repo
     disable_wlan_powersave

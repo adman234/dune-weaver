@@ -36,3 +36,4 @@ static/custom/*
 frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/
+update.log

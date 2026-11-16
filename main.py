@@ -12,7 +12,6 @@ from modules.connection import connection_manager
 from modules.core import pattern_manager
 from modules.core.pattern_manager import parse_theta_rho_file, THETA_RHO_DIR
 from modules.core import playlist_manager
-from modules.update import update_manager
 from modules.core.state import state
 from modules import mqtt
 import signal
@@ -30,6 +29,7 @@ import base64
 import hashlib
 import time
 import subprocess
+import shutil
 
 # Get log level from environment variable, default to INFO
 log_level_str = os.getenv('LOG_LEVEL', 'INFO').upper()
@@ -2586,29 +2586,6 @@ async def set_speed(request: SpeedRequest):
         logger.error(f"Failed to set speed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/check_software_update")
-async def check_updates():
-    update_info = update_manager.check_git_updates()
-    return update_info
-
-@app.post("/update_software")
-async def update_software():
-    logger.info("Starting software update process")
-    success, error_message, error_log = update_manager.update_software()
-    
-    if success:
-        logger.info("Software update completed successfully")
-        return {"success": True}
-    else:
-        logger.error(f"Software update failed: {error_message}\nDetails: {error_log}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": error_message,
-                "details": error_log
-            }
-        )
-
 @app.post("/set_wled_ip")
 async def set_wled_ip(request: WLEDRequest):
     """Legacy endpoint for backward compatibility - sets WLED as LED provider"""
@@ -4077,9 +4054,18 @@ async def trigger_update():
         dw_path = '/usr/local/bin/dw'
         log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'update.log')
         logger.info(f"Running: {dw_path} update (log: {log_file})")
+        cmd = [dw_path, 'update']
+        # `dw update` restarts this service. Run it in its own transient systemd
+        # unit so the restart doesn't kill it (a child process stays in our
+        # cgroup even with start_new_session).
+        if shutil.which('systemd-run') and hasattr(os, 'geteuid') and os.geteuid() == 0:
+            cmd = ['systemd-run', '--quiet', '--collect',
+                   f'--unit=dune-weaver-update-{int(time.time())}',
+                   '-p', f'StandardOutput=truncate:{log_file}',
+                   '-p', 'StandardError=inherit'] + cmd
         with open(log_file, 'w') as f:
             subprocess.Popen(
-                [dw_path, 'update'],
+                cmd,
                 stdout=f,
                 stderr=subprocess.STDOUT,
                 start_new_session=True,
