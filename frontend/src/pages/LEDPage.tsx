@@ -363,6 +363,8 @@ export function LEDPage() {
   }
 
   const clearEffectSettings = async (type: 'idle' | 'playing') => {
+    const count = (type === 'idle' ? idleEffects : playingEffects).length
+    if (!confirm(`Remove all ${count} ${type} effect option${count === 1 ? '' : 's'}? This cannot be undone.`)) return
     try {
       await apiClient.post('/api/dw_leds/clear_effect_settings', { type })
       toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} effects cleared`)
