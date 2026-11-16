@@ -87,8 +87,27 @@ def normalize_file_path(file_path: str) -> str:
         normalized = normalized[11:]
     elif normalized.startswith('patterns/'):
         normalized = normalized[9:]
-    
+
     return normalized
+
+
+def is_safe_relpath(rel_path: str) -> bool:
+    """True if a client-supplied relative path stays inside its base directory."""
+    if not rel_path or '\x00' in rel_path:
+        return False
+    rel_path = rel_path.replace('\\', '/')
+    if rel_path.startswith('/') or (len(rel_path) > 1 and rel_path[1] == ':'):
+        return False
+    return '..' not in rel_path.split('/')
+
+
+def resolve_pattern_path(file_path: str) -> str:
+    """Join a client-supplied pattern path onto THETA_RHO_DIR, rejecting
+    anything that would escape the patterns directory (e.g. '../settings.json')."""
+    rel = normalize_file_path(file_path or '')
+    if not is_safe_relpath(rel):
+        raise HTTPException(status_code=400, detail="Invalid pattern path")
+    return os.path.join(pattern_manager.THETA_RHO_DIR, rel)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -1765,9 +1784,13 @@ async def upload_theta_rho(file: UploadFile = File(...)):
         custom_patterns_dir = os.path.join(pattern_manager.THETA_RHO_DIR, "custom_patterns")
         os.makedirs(custom_patterns_dir, exist_ok=True)
         
+        # Only the base name of the upload is used; never trust client paths
+        upload_name = os.path.basename((file.filename or '').replace('\\', '/'))
+        if not upload_name or upload_name in ('.', '..'):
+            raise HTTPException(status_code=400, detail="Invalid file name")
         # Use forward slashes for internal path representation to maintain consistency
-        file_path_in_patterns_dir = f"custom_patterns/{file.filename}"
-        full_file_path = os.path.join(pattern_manager.THETA_RHO_DIR, file_path_in_patterns_dir)
+        file_path_in_patterns_dir = f"custom_patterns/{upload_name}"
+        full_file_path = resolve_pattern_path(file_path_in_patterns_dir)
         
         # Save the uploaded file with proper encoding for Windows compatibility
         file_content = await file.read()
@@ -1801,7 +1824,9 @@ async def upload_theta_rho(file: UploadFile = File(...)):
                 if attempt < max_retries - 1:
                     await asyncio.sleep(0.5)  # Small delay before retry
         
-        return {"success": True, "message": f"File {file.filename} uploaded successfully"}
+        return {"success": True, "message": f"File {upload_name} uploaded successfully"}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error uploading file: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1812,7 +1837,7 @@ async def get_theta_rho_coordinates(request: GetCoordinatesRequest):
     try:
         # Normalize file path for cross-platform compatibility and remove prefixes
         file_name = normalize_file_path(request.file_name)
-        file_path = os.path.join(THETA_RHO_DIR, file_name)
+        file_path = resolve_pattern_path(file_name)
 
         # Check if we can use cached coordinates (already loaded for current playback)
         # This avoids re-parsing large files (2MB+) which can cause issues on Pi Zero 2W
@@ -1846,6 +1871,8 @@ async def get_theta_rho_coordinates(request: GetCoordinatesRequest):
             "total_points": len(coordinates)
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting coordinates for {request.file_name}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1864,7 +1891,7 @@ async def run_theta_rho(request: ThetaRhoRequest, background_tasks: BackgroundTa
     if not file_path:
         # Normalize file path for cross-platform compatibility
         normalized_file_name = normalize_file_path(request.file_name)
-        file_path = os.path.join(pattern_manager.THETA_RHO_DIR, normalized_file_name)
+        file_path = resolve_pattern_path(normalized_file_name)
     if not os.path.exists(file_path):
         logger.error(f'Theta-rho file not found: {file_path}')
         raise HTTPException(status_code=404, detail="File not found")
@@ -2105,7 +2132,7 @@ async def recover_sensor_homing(request: SensorHomingRecoveryRequest):
 
 @app.post("/run_theta_rho_file/{file_name}")
 async def run_specific_theta_rho_file(file_name: str):
-    file_path = os.path.join(pattern_manager.THETA_RHO_DIR, file_name)
+    file_path = resolve_pattern_path(file_name)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -2129,7 +2156,7 @@ async def delete_theta_rho_file(request: DeleteFileRequest):
 
     # Normalize file path for cross-platform compatibility
     normalized_file_name = normalize_file_path(request.file_name)
-    file_path = os.path.join(pattern_manager.THETA_RHO_DIR, normalized_file_name)
+    file_path = resolve_pattern_path(normalized_file_name)
 
     # Check file existence asynchronously
     exists = await asyncio.to_thread(os.path.exists, file_path)
@@ -2151,6 +2178,8 @@ async def delete_theta_rho_file(request: DeleteFileRequest):
             logger.warning(f"Cache cleanup failed for {request.file_name}, but pattern was deleted")
         
         return {"success": True, "cache_cleanup": cache_cleanup_success}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to delete theta-rho file {request.file_name}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -2220,7 +2249,7 @@ async def preview_thr(request: DeleteFileRequest):
     # Normalize file path for cross-platform compatibility
     normalized_file_name = normalize_file_path(request.file_name)
     # Construct the full path to the pattern file to check existence
-    pattern_file_path = os.path.join(pattern_manager.THETA_RHO_DIR, normalized_file_name)
+    pattern_file_path = resolve_pattern_path(normalized_file_name)
 
     # Check file existence asynchronously
     exists = await asyncio.to_thread(os.path.exists, pattern_file_path)
@@ -2343,6 +2372,8 @@ async def serve_preview(encoded_filename: str):
     
     # Apply normalization to handle any remaining path prefixes
     file_name = normalize_file_path(file_name)
+    if not is_safe_relpath(file_name):
+        raise HTTPException(status_code=400, detail="Invalid pattern path")
     
     # Check if the decoded path exists, if not try backslash decoding
     cache_path = get_cache_path(file_name)
@@ -2400,8 +2431,8 @@ async def send_coordinate(request: CoordinateRequest):
 @app.get("/download/{filename}")
 async def download_file(filename: str):
     return FileResponse(
-        os.path.join(pattern_manager.THETA_RHO_DIR, filename),
-        filename=filename
+        resolve_pattern_path(filename),
+        filename=os.path.basename(filename)
     )
 
 @app.get("/serial_status")
@@ -2818,7 +2849,7 @@ async def add_to_queue(request: dict):
         raise HTTPException(status_code=400, detail="pattern is required")
 
     # Verify the pattern file exists
-    pattern_path = os.path.join(pattern_manager.THETA_RHO_DIR, pattern)
+    pattern_path = resolve_pattern_path(pattern)
     if not os.path.exists(pattern_path):
         raise HTTPException(status_code=404, detail="Pattern file not found")
 
@@ -2852,7 +2883,7 @@ async def set_custom_clear_patterns(request: dict):
     try:
         # Validate that the patterns exist if they're provided
         if "custom_clear_from_in" in request and request["custom_clear_from_in"]:
-            pattern_path = os.path.join(pattern_manager.THETA_RHO_DIR, request["custom_clear_from_in"])
+            pattern_path = resolve_pattern_path(request["custom_clear_from_in"])
             if not os.path.exists(pattern_path):
                 raise HTTPException(status_code=400, detail=f"Pattern file not found: {request['custom_clear_from_in']}")
             state.custom_clear_from_in = request["custom_clear_from_in"]
@@ -2860,7 +2891,7 @@ async def set_custom_clear_patterns(request: dict):
             state.custom_clear_from_in = None
             
         if "custom_clear_from_out" in request and request["custom_clear_from_out"]:
-            pattern_path = os.path.join(pattern_manager.THETA_RHO_DIR, request["custom_clear_from_out"])
+            pattern_path = resolve_pattern_path(request["custom_clear_from_out"])
             if not os.path.exists(pattern_path):
                 raise HTTPException(status_code=400, detail=f"Pattern file not found: {request['custom_clear_from_out']}")
             state.custom_clear_from_out = request["custom_clear_from_out"]
@@ -2874,6 +2905,8 @@ async def set_custom_clear_patterns(request: dict):
             "custom_clear_from_in": state.custom_clear_from_in,
             "custom_clear_from_out": state.custom_clear_from_out
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to set custom clear patterns: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -3420,7 +3453,7 @@ async def preview_thr_batch(request: dict):
             try:
                 # Normalize file path for cross-platform compatibility
                 normalized_file_name = normalize_file_path(file_name)
-                pattern_file_path = os.path.join(pattern_manager.THETA_RHO_DIR, normalized_file_name)
+                pattern_file_path = resolve_pattern_path(normalized_file_name)
 
                 # Check file existence asynchronously
                 exists = await asyncio.to_thread(os.path.exists, pattern_file_path)

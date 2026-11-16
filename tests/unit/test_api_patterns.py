@@ -92,7 +92,7 @@ class TestGetThetaRhoCoordinates:
 
         mock_coordinates = [(0.0, 0.5), (1.57, 0.8), (3.14, 0.3)]
 
-        with patch("main.THETA_RHO_DIR", str(patterns_dir)):
+        with patch("main.pattern_manager.THETA_RHO_DIR", str(patterns_dir)):
             with patch("main.parse_theta_rho_file", return_value=mock_coordinates):
                 response = await async_client.post(
                     "/get_theta_rho_coordinates",
