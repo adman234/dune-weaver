@@ -58,16 +58,34 @@ Free 3D-printable models on MakerWorld: [DW OG](https://makerworld.com/en/models
 
 ## Quick Start
 
-The fastest way to get running on a Raspberry Pi:
+> This is **[adman234/dune-weaver](https://github.com/adman234/dune-weaver)**, a maintained fork of
+> [tuanchris/dune-weaver](https://github.com/tuanchris/dune-weaver). Install, update, backup and
+> troubleshooting steps for the fork are in **[FORK_README.md](FORK_README.md)**.
+
+On a fresh Raspberry Pi OS (64-bit), over SSH as your normal user:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/adman234/dune-weaver/main/setup-pi.sh -o setup-pi.sh
-bash setup-pi.sh
+curl -fsSL https://raw.githubusercontent.com/adman234/dune-weaver/main/scripts/fork-install.sh | bash
 ```
 
-This installs Docker, clones the repo, and starts the application. Once it finishes, open **http://\<hostname\>.local** in your browser.
+To move an existing install (upstream or fork) onto this fork, with a backup first:
 
-For full deployment options (Docker, manual install, development setup, Windows, and more), see the **[Deploying Backend](https://duneweaver.com/docs/deploying-backend)** guide.
+```bash
+curl -fsSL https://raw.githubusercontent.com/adman234/dune-weaver/main/scripts/fork-update.sh | bash
+```
+
+Once it finishes, open **http://\<pi-ip\>/** in your browser. Afterwards, `dw update` pulls the latest
+from your branch and `dw checkout <branch>` switches branches.
+
+### Fork changes in v4.2.0
+
+- Updates, the update badge and the version check all use this fork, not upstream.
+- `dw checkout` works on any install. The web UI update runs outside the service, so it no longer kills itself mid-update.
+- Settings, state and playlists are written atomically, so a power cut can't corrupt them.
+- Pattern endpoints reject paths outside the patterns folder.
+- Security mode: passwords are salted (PBKDF2), changing them needs the current password, and CORS is limited to LAN origins.
+- Pausing during Still Sands works. Homing can no longer hang forever. Restarting the connection doesn't block the server.
+- CI checks the Python constraints, runs shellcheck, and checks that `static/dist` matches the frontend source.
 
 ### Polar coordinates
 

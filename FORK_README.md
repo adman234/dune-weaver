@@ -75,7 +75,7 @@ is just the safer version because it takes a backup first.
 | `dw logs` | follow the log (Ctrl+C to exit) |
 | `dw restart` | restart the app |
 | `dw update` | pull latest from your branch and redeploy |
-| `dw checkout <branch>` | switch branch (works on installs made or updated by the fork scripts) |
+| `dw checkout <branch>` | switch to another branch of the fork (backs up local edits first) |
 | `dw wifi` | WiFi / hotspot status and tools |
 | `dw touch install` | install the touch-screen app |
 
@@ -101,33 +101,35 @@ To go back to exactly the old code, follow the "roll back" section of
 
 ## Edge cases and fixes
 
-**Settings or playlists vanished after a power cut.**
-The app writes its JSON files in place, so a cut mid-write can corrupt them.
-A corrupted playlists file gets reset to empty. Restore from the newest
-`~/dw-backups/*` folder (see above). Running `fork-update.sh` with
-`DW_BACKUP_ONLY=1` occasionally, or from cron, gives you restore points.
-
-**`dw update` fails with `Permission denied` under `.git/`.**
-An update run from the web UI left root-owned files. Fix ownership, then retry:
+**Forgot the security-mode password.**
+Changing security settings now needs the current password. To reset it:
 ```bash
-sudo chown -R "$USER:$USER" ~/dune-weaver && dw update
+dw stop
 ```
+```bash
+cd ~/dune-weaver && sudo python3 -c "import json;p='settings.json';s=json.load(open(p));s['security_mode']='off';s['security_password_hash']='';json.dump(s,open(p,'w'),indent=2)" && dw start
+```
+
+**Browser or app on another network gets CORS errors.**
+The API only accepts browser requests from LAN addresses (`192.168.*`, `10.*`,
+`*.local`, and so on). To allow something else, such as a reverse-proxy domain,
+add an override to the service and restart:
+```bash
+sudo systemctl edit dune-weaver
+```
+In the editor, add `[Service]` and
+`Environment=DW_CORS_ORIGIN_REGEX=^https?://(dune\.example\.com|192\.168\.\d+\.\d+)(:\d+)?$`,
+then run `dw restart`.
+
+**Settings or playlists are missing.**
+The fork writes its JSON files atomically. If an old corrupt file is found, it is
+kept as `*.corrupt-<time>` next to the original. Restore from the newest
+`~/dw-backups/*` folder (see above).
 
 **`fatal: detected dubious ownership in repository`.**
 ```bash
 git config --global --add safe.directory ~/dune-weaver
 ```
-
-**`dw checkout <branch>` says `'origin/<branch>' is not a commit`.**
-The install was cloned single-branch by the old installer. Run
-`fork-update.sh` once (it fixes this), or:
-```bash
-cd ~/dune-weaver && git config --replace-all remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*' && git fetch origin
-```
-
-**The web UI's update badge never lights up for fork releases.**
-The badge still reads upstream's GitHub releases. Update with
-`fork-update.sh` or `dw update` until that's changed in the code.
 
 **Service won't start after an update.**
 Read `dw logs`. Usually a Python package changed, so reinstall the requirements:
@@ -152,8 +154,8 @@ When no known network is in range, the autohotspot starts. Join the
 network there.
 
 **`dw: Dune Weaver not found`.**
-`dw` only looks in `~/dune-weaver` and `/home/pi/dune-weaver`. Run it as the
-user who owns the install, without sudo, or `cd` into the install first.
+`dw` looks in `~/dune-weaver` (also the sudo user's home), `/home/pi/dune-weaver`
+and the current folder. For an install anywhere else, `cd` into it first.
 
 **Install was copied or unzipped rather than cloned (no `.git`).**
 `fork-update.sh` backs it up and stops, then prints the three commands to move

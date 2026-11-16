@@ -10,7 +10,23 @@ Test status: `main` passes 109 unit tests; the feature branch passes 122.
 
 Install/update steps are in [FORK_README.md](FORK_README.md).
 
-**Status key:** ✅ confirmed (reproduced or read directly in code) · ⚠️ likely (reasoned from code, not run on a Pi)
+## Fix status (branch `fork-fixes`, v4.2.0)
+
+**Fixed:** #1–#11, #13, #15–#17, #19, #20, plus the #18 lint/duplication cleanups.
+
+**Not done / partial:**
+- **#11:** passwords are now salted, changing security settings needs the
+  current password, and CORS is limited to LAN origins. Security mode is still
+  enforced in the UI only. A server-side session token on every write endpoint
+  would break multi-table control, so it was left out.
+- **#18:** splitting `main.py` into routers was not done.
+- **#17:** the `custom_patterns` `.gitignore` item was a non-bug, so it was skipped.
+- **#12** (run as non-root) and **#14** (motion stop drops futures) were not
+  requested.
+- **New:** `modules/wifi/manager.py` calls `subprocess.run` (10 s timeout)
+  inside async functions, which can stall the event loop (ruff ASYNC221).
+
+**Status key** (findings below): ✅ confirmed (reproduced or read directly in code) · ⚠️ likely (reasoned from code, not run on a Pi)
 
 ## Do these first
 
