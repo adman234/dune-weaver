@@ -742,7 +742,7 @@ async def clear_logs():
 def get_redirect_response(request: Request):
     """Return redirect page pointing users to the new frontend."""
     host = request.headers.get("host", "localhost").split(":")[0]  # Remove port if present
-    return templates.TemplateResponse("redirect.html", {"request": request, "host": host})
+    return templates.TemplateResponse(request, "redirect.html", {"host": host})
 
 @app.get("/")
 async def index(request: Request):
