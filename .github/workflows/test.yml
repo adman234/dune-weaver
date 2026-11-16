@@ -138,6 +138,8 @@ jobs:
           if [ -n "$(git status --porcelain static/dist)" ]; then
             echo "::error::static/dist is out of date. Run 'cd frontend && npm ci && npm run build' and commit static/dist."
             git status --short static/dist | head -20
+            # sw.js is one minified line; split it so the diff is readable
+            diff <(git show HEAD:static/dist/sw.js | tr ',' '\n') <(tr ',' '\n' < static/dist/sw.js) | head -40 || true
             exit 1
           fi
 
