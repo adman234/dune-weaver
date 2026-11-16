@@ -26,7 +26,7 @@ from modules.core.log_handler import init_memory_handler, get_memory_handler
 from modules.wifi.router import router as wifi_router, captive_portal_router
 import json
 import base64
-import hashlib
+from modules.core.passwords import hash_password, verify_password, needs_rehash
 import time
 import subprocess
 import shutil
@@ -373,10 +373,21 @@ app = FastAPI(lifespan=lifespan)
 
 # Add CORS middleware to allow cross-origin requests from other Dune Weaver frontends
 # This enables multi-table control from a single frontend
-# Note: allow_credentials must be False when allow_origins=["*"] (browser security requirement)
+# Only pages served from the local network may call the API from a browser
+# (other tables, localhost, *.local, bare hostnames, private IPs). This stops
+# random internet pages opened on a LAN device from driving the table.
+# Override with DW_CORS_ORIGIN_REGEX (e.g. ".*" to restore the old behaviour).
+LAN_ORIGIN_REGEX = (
+    r"^https?://("
+    r"localhost|\[::1\]|127(\.\d{1,3}){3}"
+    r"|10(\.\d{1,3}){3}|192\.168(\.\d{1,3}){2}|172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2}"
+    r"|169\.254(\.\d{1,3}){2}"
+    r"|[A-Za-z0-9-]+|[A-Za-z0-9.-]+\.(local|lan|home\.arpa)"
+    r")(:\d+)?$"
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for local network access
+    allow_origin_regex=os.environ.get("DW_CORS_ORIGIN_REGEX", LAN_ORIGIN_REGEX),
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -551,7 +562,8 @@ class MachineSettingsUpdate(BaseModel):
 
 class SecuritySettingsUpdate(BaseModel):
     mode: Optional[str] = None  # "off", "lockdown", "play_only"
-    password: Optional[str] = None  # Write-only, stored as SHA-256 hash
+    password: Optional[str] = None  # Write-only, stored as a salted PBKDF2 hash
+    current_password: Optional[str] = None  # Required to change anything once a password is set
 
 class SecurityVerifyRequest(BaseModel):
     password: str
@@ -1098,6 +1110,12 @@ async def update_settings(settings_update: SettingsUpdate):
     # Security settings
     if settings_update.security:
         sec = settings_update.security
+        changing = (sec.mode is not None and sec.mode != state.security_mode) or bool(sec.password)
+        if changing and state.security_password_hash:
+            ok = await asyncio.to_thread(verify_password, sec.current_password or "", state.security_password_hash)
+            if not ok:
+                await asyncio.sleep(1)
+                raise HTTPException(status_code=403, detail="Current security password is incorrect")
         if sec.mode is not None:
             if sec.mode not in ("off", "lockdown", "play_only"):
                 raise HTTPException(status_code=400, detail="Invalid security mode. Must be 'off', 'lockdown', or 'play_only'.")
@@ -1106,7 +1124,7 @@ async def update_settings(settings_update: SettingsUpdate):
             if sec.mode == "off":
                 state.security_password_hash = ""
         if sec.password is not None and sec.password != "":
-            state.security_password_hash = hashlib.sha256(sec.password.encode('utf-8')).hexdigest()
+            state.security_password_hash = await asyncio.to_thread(hash_password, sec.password)
         updated_categories.append("security")
 
     # Save state
@@ -1128,10 +1146,18 @@ async def update_settings(settings_update: SettingsUpdate):
 @app.post("/api/security/verify", tags=["settings"])
 async def verify_security_password(request: SecurityVerifyRequest):
     """Verify a security password against the stored hash."""
-    if not state.security_password_hash:
+    stored = state.security_password_hash
+    if not stored:
         return {"valid": False}
-    input_hash = hashlib.sha256(request.password.encode('utf-8')).hexdigest()
-    return {"valid": input_hash == state.security_password_hash}
+    valid = await asyncio.to_thread(verify_password, request.password, stored)
+    if not valid:
+        await asyncio.sleep(1)  # slow down guessing
+        return {"valid": False}
+    if needs_rehash(stored):
+        # Upgrade legacy unsalted SHA-256 hashes on first successful login
+        state.security_password_hash = await asyncio.to_thread(hash_password, request.password)
+        state.save()
+    return {"valid": True}
 
 # ============================================================================
 # Multi-Table Identity Endpoints

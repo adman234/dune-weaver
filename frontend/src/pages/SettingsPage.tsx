@@ -179,6 +179,7 @@ export function SettingsPage() {
   const [securityPassword, setSecurityPassword] = useState('')
   const [securityPasswordConfirm, setSecurityPasswordConfirm] = useState('')
   const [hasExistingPassword, setHasExistingPassword] = useState(false)
+  const [securityCurrentPassword, setSecurityCurrentPassword] = useState('')
 
   // Version state
   const [versionInfo, setVersionInfo] = useState<{
@@ -2352,6 +2353,19 @@ export function SettingsPage() {
               </RadioGroup>
             </div>
 
+            {hasExistingPassword && (
+              <div className="space-y-2 pt-2">
+                <Label htmlFor="security-current-password">Current Password</Label>
+                <Input
+                  id="security-current-password"
+                  type="password"
+                  placeholder="Required to change security settings"
+                  value={securityCurrentPassword}
+                  onChange={(e) => setSecurityCurrentPassword(e.target.value)}
+                />
+              </div>
+            )}
+
             {/* Password fields (shown when mode != off) */}
             {securityMode !== 'off' && (
               <div className="space-y-3 pt-2">
@@ -2411,15 +2425,23 @@ export function SettingsPage() {
                   if (securityPassword) {
                     payload.security.password = securityPassword
                   }
+                  if (hasExistingPassword) {
+                    payload.security.current_password = securityCurrentPassword
+                  }
                   await apiClient.patch('/api/settings', payload)
                   toast.success('Security settings saved')
                   setSecurityPassword('')
                   setSecurityPasswordConfirm('')
+                  setSecurityCurrentPassword('')
                   setHasExistingPassword(securityMode !== 'off')
                   // Notify Layout to refetch security state
                   window.dispatchEvent(new CustomEvent('security-updated'))
-                } catch {
-                  toast.error('Failed to save security settings')
+                } catch (err) {
+                  toast.error(
+                    err instanceof Error && err.message.includes('HTTP 403')
+                      ? 'Current password is incorrect'
+                      : 'Failed to save security settings'
+                  )
                 } finally {
                   setIsLoading(null)
                 }

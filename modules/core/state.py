@@ -185,7 +185,7 @@ class AppState:
 
         # Security settings
         self.security_mode = "off"  # "off", "lockdown", "play_only"
-        self.security_password_hash = ""  # SHA-256 hex digest
+        self.security_password_hash = ""  # see modules/core/passwords.py
 
         self.load()
 
