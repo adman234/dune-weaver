@@ -29,12 +29,12 @@ curl -fsSL https://raw.githubusercontent.com/adman234/dune-weaver/main/scripts/f
 ```
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/adman234/dune-weaver/main/scripts/fork-install.sh | DW_BRANCH=feature/led-random-effect-options bash
+curl -fsSL https://raw.githubusercontent.com/adman234/dune-weaver/main/scripts/fork-install.sh | DW_BRANCH=<branch> bash
 ```
 
 ## Existing Pi: back up, switch to the fork, update
 
-This works on a stock upstream install, on one running a fork branch (like the
+This works on a stock upstream install, on one running a fork branch (like the old
 LED random-effect branch), and as the routine update for fork installs:
 
 ```bash
