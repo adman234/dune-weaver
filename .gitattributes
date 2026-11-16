@@ -7,3 +7,8 @@ nginx.conf text eol=lf
 
 # dw CLI has no .sh extension
 dw text eol=lf
+
+# Frontend source and build output: LF on every OS so a Windows build of
+# static/dist is byte-identical to the Linux build CI checks against
+frontend/** text=auto eol=lf
+static/dist/** text=auto eol=lf
