@@ -57,7 +57,7 @@ export function UpdateDialog({ open, onOpenChange, currentVersion, latestVersion
     if (!isBackendConnected) {
       sawDisconnect.current = true
     } else if (sawDisconnect.current) {
-      // WS came back after being down — update is done
+      // WS came back after being down, so the update is done
       setState('complete')
     }
   }, [state, isBackendConnected])

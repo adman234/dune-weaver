@@ -10,7 +10,7 @@ export function CaptivePortalPage() {
     const url = 'http://10.42.0.1'
     const w = window.open(url, '_blank')
     if (!w || w.closed) {
-      // window.open blocked — show URL for user to open manually
+      // window.open blocked, so show URL for user to open manually
       setShowUrlHint(true)
     }
   }

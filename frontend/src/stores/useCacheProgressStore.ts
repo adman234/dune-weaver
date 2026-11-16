@@ -54,7 +54,7 @@ export const useCacheProgressStore = create<CacheProgressStore>()((set, get) => 
             // Auto-disconnect after completion arrives
             setTimeout(() => get().disconnect(), 500)
           } else {
-            // Idle — nothing is happening, disconnect
+            // Idle, nothing is happening, so disconnect
             set({ cacheProgress: null })
             get().disconnect()
           }
@@ -67,7 +67,7 @@ export const useCacheProgressStore = create<CacheProgressStore>()((set, get) => 
     socket.onclose = () => {
       if (ws === socket) ws = null
       set({ isConnected: false })
-      // No auto-reconnect — Layout will call connect() again if needed
+      // No auto-reconnect: Layout will call connect() again if needed
     }
 
     socket.onerror = () => {

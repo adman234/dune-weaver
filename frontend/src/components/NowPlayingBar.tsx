@@ -1302,7 +1302,7 @@ export function NowPlayingBar({ isLogsOpen = false, logsDrawerHeight = 256, isVi
               Queue
               {status?.playlist?.name && (
                 <span className="text-sm font-normal text-muted-foreground">
-                  — {status.playlist.name}
+                  ({status.playlist.name})
                 </span>
               )}
             </DialogTitle>

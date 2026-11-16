@@ -128,7 +128,7 @@ async def lifespan(app: FastAPI):
             # If connected, perform homing in background (unless disabled)
             if state.conn and state.conn.is_connected():
                 if not state.home_on_connect:
-                    logger.info("Device connected. Home-on-connect is disabled — skipping automatic homing.")
+                    logger.info("Device connected. Home-on-connect is disabled, skipping automatic homing.")
                 else:
                     logger.info("Device connected, starting homing in background...")
                     state.is_homing = True
@@ -332,7 +332,7 @@ async def lifespan(app: FastAPI):
                     was_in_still_sands = False
                     continue
 
-                # Skip if a pattern or playlist is actively running —
+                # Skip if a pattern or playlist is actively running:
                 # the pattern_manager handles Still Sands in that case
                 is_playing = bool(state.current_playing_file or state.current_playlist)
                 if is_playing:
@@ -342,14 +342,14 @@ async def lifespan(app: FastAPI):
                 in_still_sands = is_in_scheduled_pause_period()
 
                 if in_still_sands and not was_in_still_sands:
-                    # Entering Still Sands while idle — turn off LEDs
+                    # Entering Still Sands while idle: turn off LEDs
                     status = state.led_controller.check_status()
                     is_powered_on = status.get("power", False) or status.get("power_on", False)
                     if is_powered_on:
                         logger.info("Still Sands period started while idle, turning off LEDs")
                         state.led_controller.set_power(0)
                 elif not in_still_sands and was_in_still_sands:
-                    # Leaving Still Sands while idle — restore idle effect and restart timeout
+                    # Leaving Still Sands while idle: restore idle effect and restart timeout
                     if state.led_automation_enabled:
                         logger.info("Still Sands period ended while idle, restoring idle LED effect")
                         await start_idle_led_timeout(check_still_sands=False)
@@ -1077,7 +1077,7 @@ async def update_settings(settings_update: SettingsUpdate):
             if state.gear_ratio_override is not None:
                 state.gear_ratio = state.gear_ratio_override
             else:
-                # Cleared — revert to auto-detected value (table type, then env var)
+                # Cleared: revert to auto-detected value (table type, then env var)
                 effective_table_type = state.table_type_override or state.table_type
                 mini_types = ['dune_weaver_mini', 'dune_weaver_mini_pro', 'dune_weaver_mini_pro_byj', 'dune_weaver_gold']
                 state.gear_ratio = 6.25 if effective_table_type in mini_types else 10

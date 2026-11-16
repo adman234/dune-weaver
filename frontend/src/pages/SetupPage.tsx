@@ -460,7 +460,7 @@ function CalibrationWizard() {
           <h3 className="font-semibold">Verify X Axis (Larger Movement)</h3>
           <p className="text-sm text-muted-foreground">
             This sends a larger angular movement. The ball should make roughly a <strong>full clockwise rotation</strong>.
-            It will also spiral inward slightly — this is normal due to the mechanical coupling between the angular and radial axes.
+            It will also spiral inward slightly. This is normal due to the mechanical coupling between the angular and radial axes.
           </p>
           <Button
             onClick={async () => {
@@ -724,7 +724,7 @@ function ConfigEditor() {
                   </span>
                   <div className="text-left">
                     <div className="font-semibold">
-                      {axis.toUpperCase()} Axis — {axis === 'x' ? 'Angular' : 'Radial'}
+                      {axis.toUpperCase()} Axis ({axis === 'x' ? 'Angular' : 'Radial'})
                     </div>
                     <div className="text-sm text-muted-foreground font-normal">
                       Movement, direction, and homing for the {axis === 'x' ? 'angular' : 'radial'} motor
@@ -902,7 +902,7 @@ export function SetupPage() {
             <Alert className="mb-4">
               <span className="material-icons-outlined text-base mr-2 shrink-0">warning</span>
               <AlertDescription>
-                These are low-level FluidNC firmware settings. Only modify them if you understand what each parameter does — incorrect values can cause erratic movement or prevent the table from working.
+                These are low-level FluidNC firmware settings. Only modify them if you understand what each parameter does. Incorrect values can cause erratic movement or prevent the table from working.
               </AlertDescription>
             </Alert>
             <ConfigEditor />

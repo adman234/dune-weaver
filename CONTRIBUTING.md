@@ -93,7 +93,7 @@ cd frontend && npm run test:e2e:ui               # interactive UI mode
 
 ### Hardware Integration Tests (pytest)
 
-Integration tests exercise real hardware — serial connections, homing, movement, and pattern execution. They are **skipped by default** and in CI.
+Integration tests exercise real hardware: serial connections, homing, movement, and pattern execution. They are **skipped by default** and in CI.
 
 ```bash
 # Run all integration tests (hardware must be connected via USB)
@@ -116,14 +116,14 @@ pytest tests/integration/ --run-hardware -v -s
 
 ## Linting
 
-### Python — Ruff
+### Python: Ruff
 
 ```bash
 ruff check .                # check for issues
 ruff check --fix .          # auto-fix what it can
 ```
 
-### Frontend — ESLint
+### Frontend: ESLint
 
 ```bash
 cd frontend && npm run lint
@@ -143,9 +143,9 @@ cp scripts/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
 
 Create branches from `main` using these prefixes:
 
-- `feature/` — new functionality (e.g., `feature/pattern-editor`)
-- `fix/` — bug fixes (e.g., `fix/playlist-reorder`)
-- `chore/` — maintenance, tooling, docs (e.g., `chore/update-deps`)
+- `feature/`: new functionality (e.g., `feature/pattern-editor`)
+- `fix/`: bug fixes (e.g., `fix/playlist-reorder`)
+- `chore/`: maintenance, tooling, docs (e.g., `chore/update-deps`)
 
 ### Commit messages
 

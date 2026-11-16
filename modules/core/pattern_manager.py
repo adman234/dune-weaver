@@ -286,12 +286,12 @@ async def _timed_pause(pause_time):
         # Monitor Still Sands transitions during pause
         in_still_sands = is_in_scheduled_pause_period() and state.scheduled_pause_control_wled
         if in_still_sands and not was_in_still_sands:
-            # Entering Still Sands period — turn off LEDs
+            # Entering Still Sands period: turn off LEDs
             logger.info("Still Sands period started during pause, turning off LEDs")
             if state.led_controller:
                 await state.led_controller.set_power_async(0)
         elif not in_still_sands and was_in_still_sands:
-            # Leaving Still Sands period — restore idle effect
+            # Leaving Still Sands period: restore idle effect
             logger.info("Still Sands period ended during pause, restoring idle LED effect")
             await start_idle_led_timeout(check_still_sands=False)
         was_in_still_sands = in_still_sands

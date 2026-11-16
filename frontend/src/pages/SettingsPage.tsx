@@ -960,15 +960,15 @@ export function SettingsPage() {
               </div>
               <div className="p-3 rounded-lg bg-muted/50">
                 <p className="text-xs text-muted-foreground">Gear Ratio</p>
-                <p className="font-medium text-sm">{settings.gear_ratio ?? '—'}</p>
+                <p className="font-medium text-sm">{settings.gear_ratio ?? '-'}</p>
               </div>
               <div className="p-3 rounded-lg bg-muted/50">
                 <p className="text-xs text-muted-foreground">X Steps/mm</p>
-                <p className="font-medium text-sm">{settings.x_steps_per_mm ?? '—'}</p>
+                <p className="font-medium text-sm">{settings.x_steps_per_mm ?? '-'}</p>
               </div>
               <div className="p-3 rounded-lg bg-muted/50">
                 <p className="text-xs text-muted-foreground">Y Steps/mm</p>
-                <p className="font-medium text-sm">{settings.y_steps_per_mm ?? '—'}</p>
+                <p className="font-medium text-sm">{settings.y_steps_per_mm ?? '-'}</p>
               </div>
             </div>
 

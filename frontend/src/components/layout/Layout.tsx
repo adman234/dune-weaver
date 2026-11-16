@@ -123,7 +123,7 @@ export function Layout() {
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState(false)
 
-  // FluidNC version warning — each table type has an expected version
+  // FluidNC version warning: each table type has an expected version
   const expectedFirmwareVersion = tableType === 'dune_weaver_mini' ? 'v3.8.3' : 'v3.9.5'
   const showFirmwareWarning = useMemo(() => {
     if (!firmwareVersion) return false
@@ -253,10 +253,10 @@ export function Layout() {
     }
   }, [])
 
-  // Homing transition detection — watches store values
+  // Homing transition detection: watches store values
   useEffect(() => {
     const newIsHoming = isHoming
-    // Detect transition from not homing to homing — reset dismissal
+    // Detect transition from not homing to homing, then reset dismissal
     if (!wasHomingRef.current && newIsHoming) {
       setHomingDismissed(false)
     }
@@ -755,7 +755,7 @@ export function Layout() {
     const showOverlay = !isBackendConnected || isHoming || homingJustCompleted
 
     if (!showOverlay) {
-      // Don't clear logs here — they'll be cleared when the next session starts.
+      // Don't clear logs here. They'll be cleared when the next session starts.
       // Clearing here races with the homingJustCompleted setState, wiping logs
       // before the completion overlay renders.
       if (blockingLogsWsRef.current && blockingLogsWsRef.current.readyState === WebSocket.OPEN) {
@@ -883,7 +883,7 @@ export function Layout() {
     }
   }, [isBackendConnected, isHoming, homingJustCompleted])
 
-  // Cache completion detection — show cache-all prompt when generation finishes
+  // Cache completion detection: show cache-all prompt when generation finishes
   const prevCacheProgressRef = useRef(cacheProgress)
   useEffect(() => {
     const prev = prevCacheProgressRef.current
@@ -1568,7 +1568,7 @@ export function Layout() {
             <div className="flex items-center gap-1.5 min-w-0 mx-2 text-amber-500">
               <span className="material-icons-outlined text-base shrink-0">warning</span>
               <span className="text-xs truncate">
-                FluidNC {firmwareVersion} — change to {expectedFirmwareVersion}
+                FluidNC {firmwareVersion}: change to {expectedFirmwareVersion}
               </span>
             </div>
           )}
