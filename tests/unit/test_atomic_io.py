@@ -30,7 +30,8 @@ def test_preserve_corrupt_file(tmp_path):
     target.write_text("{not json")
     copy = atomic_io.preserve_corrupt_file(target)
     assert copy and os.path.basename(copy).startswith("playlists.json.corrupt-")
-    assert open(copy).read() == "{not json"
+    with open(copy) as f:
+        assert f.read() == "{not json"
     assert atomic_io.preserve_corrupt_file(tmp_path / "missing.json") is None
 
 

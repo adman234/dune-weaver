@@ -2625,6 +2625,8 @@ async def run_playlist_endpoint(request: PlaylistRequest):
             raise HTTPException(status_code=409, detail=message)
 
         return {"message": f"Started playlist: {request.playlist_name}"}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error running playlist: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -2975,6 +2977,8 @@ async def set_clear_pattern_speed(request: dict):
             "clear_pattern_speed": state.clear_pattern_speed,
             "effective_speed": state.clear_pattern_speed if state.clear_pattern_speed is not None else state.speed
         }
+    except HTTPException:
+        raise
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid speed value")
     except Exception as e:

@@ -224,7 +224,7 @@ class TestRunPlaylist:
     async def test_run_playlist_when_disconnected(self, async_client, mock_state):
         """Test run_playlist fails when not connected.
 
-        Note: The endpoint catches HTTPException and re-raises as 500.
+        The endpoint must pass its own HTTP errors through, not wrap them in a 500.
         """
         mock_state.conn = None
         mock_state.is_homing = False
@@ -240,8 +240,8 @@ class TestRunPlaylist:
                 }
             )
 
-        # Endpoint wraps in try/except and returns 500
-        assert response.status_code == 500
+        # The real status code, not a generic 500
+        assert response.status_code == 400
         data = response.json()
         assert "not established" in data["detail"].lower()
 
@@ -249,7 +249,7 @@ class TestRunPlaylist:
     async def test_run_playlist_during_homing(self, async_client, mock_state):
         """Test run_playlist fails during homing.
 
-        Note: The endpoint catches HTTPException and re-raises as 500.
+        The endpoint must pass its own HTTP errors through, not wrap them in a 500.
         """
         mock_state.is_homing = True
         mock_state.conn = MagicMock()
@@ -266,8 +266,8 @@ class TestRunPlaylist:
                 }
             )
 
-        # Endpoint wraps in try/except and returns 500
-        assert response.status_code == 500
+        # The real status code, not a generic 500
+        assert response.status_code == 409
         data = response.json()
         assert "homing" in data["detail"].lower()
 
@@ -302,3 +302,10 @@ class TestSkipPattern:
         assert response.status_code == 400
         data = response.json()
         assert "no playlist" in data["detail"].lower()
+
+
+async def test_clear_pattern_speed_out_of_range_is_400(async_client):
+    """An out-of-range speed is a client error, not a server error."""
+    response = await async_client.post("/api/clear_pattern_speed", json={"clear_pattern_speed": 5})
+    assert response.status_code == 400
+    assert "between 50 and 2000" in response.json()["detail"]
