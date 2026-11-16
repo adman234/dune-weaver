@@ -5,6 +5,7 @@ import asyncio
 import logging
 from pathlib import Path
 from modules.core.pattern_manager import list_theta_rho_files, THETA_RHO_DIR, parse_theta_rho_file
+from modules.core.atomic_io import atomic_write_json
 
 logger = logging.getLogger(__name__)
 
@@ -142,8 +143,7 @@ def ensure_cache_dir():
                 'version': CACHE_SCHEMA_VERSION,
                 'data': {}
             }
-            with open(METADATA_CACHE_FILE, 'w') as f:
-                json.dump(initial_cache, f)
+            atomic_write_json(METADATA_CACHE_FILE, initial_cache)
             try:
                 os.chmod(METADATA_CACHE_FILE, 0o644)  # More conservative permissions
             except (OSError, PermissionError) as e:
@@ -179,8 +179,7 @@ async def ensure_cache_dir_async():
                 'data': {}
             }
             def _write_initial_cache():
-                with open(METADATA_CACHE_FILE, 'w') as f:
-                    json.dump(initial_cache, f)
+                atomic_write_json(METADATA_CACHE_FILE, initial_cache)
             
             await asyncio.to_thread(_write_initial_cache)
             try:
@@ -343,8 +342,7 @@ def save_metadata_cache(cache_data):
         else:
             structured_cache = cache_data
         
-        with open(METADATA_CACHE_FILE, 'w') as f:
-            json.dump(structured_cache, f, indent=2)
+        atomic_write_json(METADATA_CACHE_FILE, structured_cache, indent=2)
     except Exception as e:
         logger.error(f"Failed to save metadata cache: {str(e)}")
 

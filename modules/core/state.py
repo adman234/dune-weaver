@@ -7,12 +7,14 @@ import logging
 import uuid
 import base64
 from typing import Optional, Literal
+from modules.core.atomic_io import atomic_write_json, preserve_corrupt_file
 
 logger = logging.getLogger(__name__)
 
 # Debounce timer for state saves (reduces SD card wear on Pi)
 _save_timer = None
 _save_lock = threading.Lock()
+_file_lock = threading.Lock()  # serializes writes of state/settings files
 
 class AppState:
     def __init__(self):
@@ -684,16 +686,15 @@ class AppState:
 
     def save(self):
         """Save current state and settings to their respective JSON files."""
-        try:
-            with open(self.STATE_FILE, "w") as f:
-                json.dump(self.to_state_dict(), f)
-        except Exception as e:
-            print(f"Error saving state to {self.STATE_FILE}: {e}")
-        try:
-            with open(self.SETTINGS_FILE, "w") as f:
-                json.dump(self.to_settings_dict(), f)
-        except Exception as e:
-            print(f"Error saving settings to {self.SETTINGS_FILE}: {e}")
+        with _file_lock:
+            try:
+                atomic_write_json(self.STATE_FILE, self.to_state_dict())
+            except Exception as e:
+                logger.error(f"Error saving state to {self.STATE_FILE}: {e}")
+            try:
+                atomic_write_json(self.SETTINGS_FILE, self.to_settings_dict())
+            except Exception as e:
+                logger.error(f"Error saving settings to {self.SETTINGS_FILE}: {e}")
 
     def save_debounced(self, delay: float = 2.0):
         """
@@ -743,7 +744,8 @@ class AppState:
                 logger.info("Migrated settings from state.json to settings.json")
                 return
             except Exception as e:
-                print(f"Error migrating state from {self.STATE_FILE}: {e}")
+                logger.error(f"Error migrating state from {self.STATE_FILE}: {e}")
+                preserve_corrupt_file(self.STATE_FILE)
                 self.save()
                 return
 
@@ -754,7 +756,8 @@ class AppState:
                     state_data = json.load(f)
                 self.from_state_dict(state_data)
             except Exception as e:
-                print(f"Error loading state from {self.STATE_FILE}: {e}")
+                logger.error(f"Error loading state from {self.STATE_FILE}: {e}")
+                preserve_corrupt_file(self.STATE_FILE)
 
         if settings_exists:
             try:
@@ -762,7 +765,8 @@ class AppState:
                     settings_data = json.load(f)
                 self.from_settings_dict(settings_data)
             except Exception as e:
-                print(f"Error loading settings from {self.SETTINGS_FILE}: {e}")
+                logger.error(f"Error loading settings from {self.SETTINGS_FILE}: {e}")
+                preserve_corrupt_file(self.SETTINGS_FILE)
 
     def update_steps_per_mm(self, x_steps, y_steps):
         """Update and save steps per mm values."""

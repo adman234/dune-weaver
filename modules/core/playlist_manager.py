@@ -5,6 +5,7 @@ import asyncio
 from typing import Optional
 from modules.core import pattern_manager
 from modules.core.state import state
+from modules.core.atomic_io import atomic_write_json, preserve_corrupt_file
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -18,8 +19,7 @@ PLAYLISTS_FILE = os.path.join(os.getcwd(), "playlists.json")
 # Ensure the file exists and contains at least an empty JSON object
 if not os.path.isfile(PLAYLISTS_FILE):
     logger.info(f"Creating new playlists file at {PLAYLISTS_FILE}")
-    with open(PLAYLISTS_FILE, "w") as f:
-        json.dump({}, f, indent=2)
+    atomic_write_json(PLAYLISTS_FILE, {}, indent=2)
 
 def load_playlists():
     """Load the entire playlists dictionary from the JSON file."""
@@ -34,14 +34,14 @@ def load_playlists():
             return playlists
     except (json.JSONDecodeError, ValueError) as e:
         logger.error(f"Playlists file is corrupted, resetting to empty: {e}")
+        preserve_corrupt_file(PLAYLISTS_FILE)
         save_playlists({})
         return {}
 
 def save_playlists(playlists_dict):
     """Save the entire playlists dictionary back to the JSON file."""
     logger.debug(f"Saving {len(playlists_dict)} playlists to file")
-    with open(PLAYLISTS_FILE, "w") as f:
-        json.dump(playlists_dict, f, indent=2)
+    atomic_write_json(PLAYLISTS_FILE, playlists_dict, indent=2)
 
 def list_all_playlists():
     """Returns a list of all playlist names."""
