@@ -476,3 +476,56 @@ class TestMidPatternPause:
         with patch.object(pattern_manager, "state", fake_state), \
              patch("modules.core.pattern_manager.is_in_scheduled_pause_period", return_value=in_period):
             assert pattern_manager.mid_pattern_pause_active() is expected
+
+
+class TestMotionStopReleasesAwaiters:
+    """#14: moves dropped by 'stop' or shutdown must not leave awaiters hanging."""
+
+    @pytest.mark.asyncio
+    async def test_stop_resolves_queued_moves(self):
+        import asyncio
+        from modules.core.pattern_manager import MotionControlThread, MotionCommand
+
+        mc = MotionControlThread()
+        loop = asyncio.get_running_loop()
+        futures = [loop.create_future() for _ in range(3)]
+        mc.command_queue.put(MotionCommand('stop'))
+        for f in futures:
+            mc.command_queue.put(MotionCommand('move', theta=0.0, rho=0.5, future=f))
+
+        with patch.object(mc, "_move_polar_sync") as move:
+            mc.start()
+            try:
+                await asyncio.wait_for(asyncio.gather(*futures), timeout=3)
+            finally:
+                mc.stop()
+            move.assert_not_called()
+        assert all(f.done() and f.result() is None for f in futures)
+
+    @pytest.mark.asyncio
+    async def test_shutdown_resolves_leftover_moves(self):
+        import asyncio
+        from modules.core.pattern_manager import MotionControlThread, MotionCommand
+
+        mc = MotionControlThread()
+        mc.running = True  # thread never started; stop() must still drain
+        future = asyncio.get_running_loop().create_future()
+        mc.command_queue.put(MotionCommand('move', theta=0.0, rho=0.5, future=future))
+
+        mc.stop()
+
+        await asyncio.wait_for(future, timeout=1)
+
+    @pytest.mark.asyncio
+    async def test_failed_move_raises_in_awaiter(self):
+        import asyncio
+        from modules.core.pattern_manager import MotionControlThread, MotionCommand
+
+        mc = MotionControlThread()
+        mc.running = True
+        future = asyncio.get_running_loop().create_future()
+        with patch.object(mc, "_move_polar_sync", side_effect=RuntimeError("serial gone")):
+            mc._execute_move(MotionCommand('move', theta=0.0, rho=0.5, future=future))
+
+        with pytest.raises(RuntimeError, match="serial gone"):
+            await asyncio.wait_for(future, timeout=1)

@@ -481,7 +481,39 @@ class MotionControlThread:
 
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=5.0)
+        # Release anyone still awaiting a queued move
+        self._drain_queue()
         logger.info("Motion control thread stopped")
+
+    @staticmethod
+    def _resolve(command: MotionCommand, exc: Optional[BaseException] = None):
+        """Complete a command's future from the motion thread (no-op if none/done)."""
+        future = command.future
+        if future is None or future.done():
+            return
+
+        def _set():
+            if future.done():
+                return
+            if exc is None:
+                future.set_result(None)
+            else:
+                future.set_exception(exc)
+
+        try:
+            future.get_loop().call_soon_threadsafe(_set)
+        except RuntimeError:
+            pass  # event loop already closed
+
+    def _drain_queue(self):
+        """Discard queued commands, completing their futures so awaiters don't hang."""
+        while True:
+            try:
+                pending = self.command_queue.get_nowait()
+            except queue.Empty:
+                break
+            self._resolve(pending)
+            self.command_queue.task_done()
 
     def _motion_loop(self):
         """Main loop for the motion control thread."""
@@ -505,12 +537,8 @@ class MotionControlThread:
                     self.paused = False
 
                 elif command.command_type == 'stop':
-                    # Clear any pending commands
-                    while not self.command_queue.empty():
-                        try:
-                            self.command_queue.get_nowait()
-                        except queue.Empty:
-                            break
+                    # Clear pending commands; their awaiters return as if the move finished
+                    self._drain_queue()
 
                 self.command_queue.task_done()
 
@@ -530,23 +558,16 @@ class MotionControlThread:
                 time.sleep(0.1)
 
             if not self.running:
+                self._resolve(command)
                 return
 
             # Execute the actual motion using sync version
             self._move_polar_sync(command.theta, command.rho, command.speed)
-
-            # Signal completion if future provided
-            if command.future and not command.future.done():
-                command.future.get_loop().call_soon_threadsafe(
-                    command.future.set_result, None
-                )
+            self._resolve(command)
 
         except Exception as e:
             logger.error(f"Error executing move command: {e}")
-            if command.future and not command.future.done():
-                command.future.get_loop().call_soon_threadsafe(
-                    command.future.set_exception, e
-                )
+            self._resolve(command, e)
 
     def _move_polar_sync(self, theta: float, rho: float, speed: Optional[float] = None):
         """Synchronous version of move_polar for use in motion thread."""
