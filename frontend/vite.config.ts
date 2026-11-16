@@ -14,6 +14,14 @@ export default defineConfig({
       workbox: {
         // Cache static assets
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        // Glob order depends on the filesystem; sort so sw.js is the same
+        // whether it's built on Windows, macOS or Linux (CI checks this)
+        manifestTransforms: [
+          async (entries) => ({
+            manifest: [...entries].sort((a, b) => (a.url < b.url ? -1 : a.url > b.url ? 1 : 0)),
+            warnings: [],
+          }),
+        ],
         // Runtime caching rules
         runtimeCaching: [
           {
