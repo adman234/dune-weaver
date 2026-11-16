@@ -179,15 +179,8 @@ def rgb_to_hsv(r: int, g: int, b: int) -> Tuple[int, int, int]:
     return (h, s, v)
 
 def sin8(x: int) -> int:
-    """Fast 8-bit sine approximation (0-255 input, 0-255 output)"""
-    # Simple sine approximation
-    x &= 0xFF
-    if x < 128:
-        # Rising half
-        return int(128 + 127 * math.sin(x * math.pi / 128))
-    else:
-        # Falling half
-        return int(128 + 127 * math.sin((x - 128) * math.pi / 128))
+    """8-bit sine: one full period over x = 0..255, output 0..255 (sin8(64)=255, sin8(192)=1)."""
+    return int(128 + 127 * math.sin((x & 0xFF) * math.pi / 128))
 
 def sin16(x: int) -> int:
     """16-bit sine (-32768 to 32767 output)"""
