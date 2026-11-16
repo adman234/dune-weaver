@@ -77,7 +77,15 @@ curl -fsSL https://raw.githubusercontent.com/adman234/dune-weaver/main/scripts/f
 Once it finishes, open **http://\<pi-ip\>/** in your browser. Afterwards, `dw update` pulls the latest
 from your branch and `dw checkout <branch>` switches branches.
 
-### Fork changes in v4.2.0
+### Fork changes
+
+**v4.2.1**
+
+- Pressing stop no longer leaves a queued move (move to center/perimeter, send coordinate) hanging forever.
+- WiFi scan/connect/save no longer freeze the app while `nmcli` runs.
+
+**v4.2.0**
+
 
 - Updates, the update badge and the version check all use this fork, not upstream.
 - `dw checkout` works on any install. The web UI update runs outside the service, so it no longer kills itself mid-update.

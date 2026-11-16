@@ -10,9 +10,11 @@ Test status: `main` passes 109 unit tests; the feature branch passes 122.
 
 Install/update steps are in [FORK_README.md](FORK_README.md).
 
-## Fix status (branch `fork-fixes`, v4.2.0)
+## Fix status (v4.2.1)
 
-**Fixed:** #1–#11, #13, #15–#17, #19, #20, plus the #18 lint/duplication cleanups.
+**Fixed:** #1–#11, #13–#17, #19, #20, plus the #18 lint/duplication cleanups.
+v4.2.1 adds #14 and the WiFi fix: every `/api/wifi/*` endpoint ran `nmcli` on
+the event loop, so a scan or connect stalled the whole app for up to about 65 s.
 
 **Not done / partial:**
 - **#11:** passwords are now salted, changing security settings needs the
@@ -21,10 +23,7 @@ Install/update steps are in [FORK_README.md](FORK_README.md).
   would break multi-table control, so it was left out.
 - **#18:** splitting `main.py` into routers was not done.
 - **#17:** the `custom_patterns` `.gitignore` item was a non-bug, so it was skipped.
-- **#12** (run as non-root) and **#14** (motion stop drops futures) were not
-  requested.
-- **New:** `modules/wifi/manager.py` calls `subprocess.run` (10 s timeout)
-  inside async functions, which can stall the event loop (ruff ASYNC221).
+- **#12** (run as non-root): deferred, along with #11 and #18.
 
 **Status key** (findings below): ✅ confirmed (reproduced or read directly in code) · ⚠️ likely (reasoned from code, not run on a Pi)
 
