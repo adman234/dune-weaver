@@ -220,7 +220,7 @@ def get_saved_connections() -> list[dict]:
     return connections
 
 
-async def connect_to_network(ssid: str, password: str) -> dict:
+def connect_to_network(ssid: str, password: str) -> dict:
     """Connect to a WiFi network.
 
     Uses explicit connection profile creation (nmcli con add) instead of
@@ -229,10 +229,7 @@ async def connect_to_network(ssid: str, password: str) -> dict:
     """
     try:
         # Delete any stale connection profile for this SSID (ignore if not found)
-        subprocess.run(
-            [NMCLI, "con", "delete", ssid],
-            capture_output=True, text=True, timeout=10,
-        )
+        run_nmcli_check("con", "delete", ssid, timeout=10)
 
         # Create connection profile with explicit security settings
         if password:
@@ -292,10 +289,7 @@ def save_network(ssid: str, password: str) -> dict:
     """
     try:
         # Delete any stale connection profile for this SSID (ignore if not found)
-        subprocess.run(
-            [NMCLI, "con", "delete", ssid],
-            capture_output=True, text=True, timeout=10,
-        )
+        run_nmcli_check("con", "delete", ssid, timeout=10)
 
         if password:
             result = run_nmcli_check(

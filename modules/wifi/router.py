@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import Optional
+import asyncio
 import logging
 
 from . import manager
@@ -34,13 +35,13 @@ class HotspotPasswordRequest(BaseModel):
 @router.get("/status")
 async def wifi_status():
     """Get current WiFi mode, connection, and IP."""
-    return manager.get_wifi_status()
+    return await asyncio.to_thread(manager.get_wifi_status)
 
 
 @router.get("/networks")
 async def wifi_networks():
     """Scan for available WiFi networks."""
-    return manager.scan_networks()
+    return await asyncio.to_thread(manager.scan_networks)
 
 
 @router.post("/connect")
@@ -49,7 +50,7 @@ async def wifi_connect(req: WiFiConnectRequest):
     if not req.ssid:
         raise HTTPException(status_code=400, detail="SSID is required")
 
-    result = await manager.connect_to_network(req.ssid, req.password or "")
+    result = await asyncio.to_thread(manager.connect_to_network, req.ssid, req.password or "")
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])
     return result
@@ -61,7 +62,7 @@ async def wifi_save(req: WiFiConnectRequest):
     if not req.ssid:
         raise HTTPException(status_code=400, detail="SSID is required")
 
-    result = manager.save_network(req.ssid, req.password or "")
+    result = await asyncio.to_thread(manager.save_network, req.ssid, req.password or "")
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])
     return result
@@ -73,7 +74,7 @@ async def wifi_forget(req: WiFiForgetRequest):
     if not req.ssid:
         raise HTTPException(status_code=400, detail="SSID is required")
 
-    result = manager.forget_network(req.ssid)
+    result = await asyncio.to_thread(manager.forget_network, req.ssid)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])
     return result
@@ -82,19 +83,19 @@ async def wifi_forget(req: WiFiForgetRequest):
 @router.get("/saved")
 async def wifi_saved():
     """Get list of saved WiFi connections."""
-    return manager.get_saved_connections()
+    return await asyncio.to_thread(manager.get_saved_connections)
 
 
 @router.get("/hotspot/password")
 async def get_hotspot_password():
     """Get the current hotspot password."""
-    return manager.get_hotspot_password()
+    return await asyncio.to_thread(manager.get_hotspot_password)
 
 
 @router.post("/hotspot/password")
 async def set_hotspot_password(req: HotspotPasswordRequest):
     """Set or remove the hotspot password."""
-    result = manager.set_hotspot_password(req.password or "")
+    result = await asyncio.to_thread(manager.set_hotspot_password, req.password or "")
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])
     return result
