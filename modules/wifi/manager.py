@@ -8,7 +8,6 @@ import subprocess
 import shutil
 import os
 import logging
-import asyncio
 
 logger = logging.getLogger(__name__)
 

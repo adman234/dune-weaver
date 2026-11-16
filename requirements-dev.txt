@@ -11,7 +11,7 @@ pytest-timeout>=2.0
 httpx>=0.25
 
 # Serial port mocking (Linux/macOS only, not Windows)
-mock-serial>=0.0.1
+mock-serial>=0.0.1; sys_platform != "win32"
 
 # Test data generation
 factory-boy>=3.3

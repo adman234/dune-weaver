@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 from modules.connection import connection_manager
 from modules.core import pattern_manager
-from modules.core.pattern_manager import parse_theta_rho_file, THETA_RHO_DIR
+from modules.core.pattern_manager import parse_theta_rho_file
 from modules.core import playlist_manager
 from modules.core.state import state
 from modules import mqtt

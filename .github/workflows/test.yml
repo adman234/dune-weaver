@@ -6,18 +6,28 @@ on:
     paths:
       - '**.py'
       - 'requirements*.txt'
+      - 'constraints.txt'
       - 'pyproject.toml'
       - 'tests/**'
       - 'frontend/**'
+      - 'static/dist/**'
+      - 'dw'
+      - '*.sh'
+      - 'scripts/**'
       - '.github/workflows/test.yml'
   pull_request:
     branches: [ "main" ]
     paths:
       - '**.py'
       - 'requirements*.txt'
+      - 'constraints.txt'
       - 'pyproject.toml'
       - 'tests/**'
       - 'frontend/**'
+      - 'static/dist/**'
+      - 'dw'
+      - '*.sh'
+      - 'scripts/**'
       - '.github/workflows/test.yml'
   # Allow manual trigger
   workflow_dispatch:
@@ -26,21 +36,29 @@ jobs:
   # Backend tests
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 = Raspberry Pi OS Bookworm, 3.13 = Trixie
+        python-version: ['3.11', '3.13']
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
           cache: 'pip'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          # Same pinned versions the Pi installs (see constraints.txt)
+          pip install -r requirements.txt -c constraints.txt
           pip install -r requirements-dev.txt
 
       - name: Run unit tests with coverage
@@ -51,13 +69,12 @@ jobs:
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
-        if: always()
+        # Only when the repo has a CODECOV_TOKEN secret, and once per run
+        if: always() && env.CODECOV_TOKEN != '' && matrix.python-version == '3.11'
         with:
           file: ./coverage.xml
           fail_ci_if_error: false
           verbose: true
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   lint:
     runs-on: ubuntu-latest
@@ -77,10 +94,47 @@ jobs:
           python -m pip install --upgrade pip
           pip install ruff
 
-      - name: Run Ruff linter
+      - name: Ruff (blocking) - syntax errors, undefined names, unused imports
+        run: |
+          ruff check --output-format=github --select E9,F63,F7,F82,F401,F541 .
+
+      - name: Ruff (advisory) - full rule set
         run: |
           ruff check --output-format=github .
         continue-on-error: true
+
+      - name: ShellCheck install/update scripts
+        run: |
+          shellcheck -S warning dw setup-pi.sh scripts/*.sh
+
+  # The Pi serves the committed static/dist, so it must match the frontend source
+  frontend-dist:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Check static/dist is up to date
+        run: |
+          if [ -n "$(git status --porcelain static/dist)" ]; then
+            echo "::error::static/dist is out of date. Run 'cd frontend && npm ci && npm run build' and commit static/dist."
+            git status --short static/dist | head -20
+            exit 1
+          fi
 
   # Frontend unit/integration tests
   frontend-test:

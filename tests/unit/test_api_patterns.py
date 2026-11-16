@@ -116,7 +116,7 @@ class TestGetThetaRhoCoordinates:
         patterns_dir = tmp_path / "patterns"
         patterns_dir.mkdir()
 
-        with patch("main.THETA_RHO_DIR", str(patterns_dir)):
+        with patch("main.pattern_manager.THETA_RHO_DIR", str(patterns_dir)):
             response = await async_client.post(
                 "/get_theta_rho_coordinates",
                 json={"file_name": "nonexistent.thr"}

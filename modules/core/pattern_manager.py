@@ -260,6 +260,47 @@ def _get_timezone():
 
     return _cached_zoneinfo
 
+async def _timed_pause(pause_time):
+    """Wait `pause_time` seconds between patterns or playlist cycles.
+
+    Reports idle to MQTT/UI, shows the idle LED effect, follows Still Sands
+    on/off transitions, and ends early on stop or skip.
+    """
+    # Clear current_playing_file to report "idle" state to MQTT/HA during pause
+    # This will be set again when the next pattern starts
+    state.current_playing_file = None
+    # Trigger idle LED state during the pause
+    await start_idle_led_timeout(check_still_sands=True)
+    state.original_pause_time = pause_time
+    pause_start = time.time()
+    # Track Still Sands state for edge detection during long pauses
+    was_in_still_sands = is_in_scheduled_pause_period() and state.scheduled_pause_control_wled
+    while time.time() - pause_start < pause_time:
+        state.pause_time_remaining = pause_start + pause_time - time.time()
+        if state.skip_requested or state.stop_requested:
+            if state.stop_requested:
+                logger.info("Pause interrupted by stop request")
+            else:
+                logger.info("Pause interrupted by skip request")
+            break
+        # Monitor Still Sands transitions during pause
+        in_still_sands = is_in_scheduled_pause_period() and state.scheduled_pause_control_wled
+        if in_still_sands and not was_in_still_sands:
+            # Entering Still Sands period — turn off LEDs
+            logger.info("Still Sands period started during pause, turning off LEDs")
+            if state.led_controller:
+                await state.led_controller.set_power_async(0)
+        elif not in_still_sands and was_in_still_sands:
+            # Leaving Still Sands period — restore idle effect
+            logger.info("Still Sands period ended during pause, restoring idle LED effect")
+            await start_idle_led_timeout(check_still_sands=False)
+        was_in_still_sands = in_still_sands
+        await asyncio.sleep(1)
+    # Clear both pause state vars immediately (so UI updates right away)
+    state.pause_time_remaining = 0
+    state.original_pause_time = None
+
+
 def mid_pattern_pause_active():
     """True while a running pattern should stay paused.
 
@@ -1645,39 +1686,7 @@ async def run_theta_rho_files(file_paths, pause_time=0, clear_pattern=None, run_
                 # Handle pause between patterns
                 if state.current_playlist and idx < len(state.current_playlist) - 1 and not state.stop_requested and pause_time > 0 and not state.skip_requested:
                     logger.info(f"Pausing for {pause_time} seconds")
-                    # Clear current_playing_file to report "idle" state to MQTT/HA during pause
-                    # This will be set again when the next pattern starts
-                    state.current_playing_file = None
-                    # Trigger idle LED state during pause between patterns
-                    await start_idle_led_timeout(check_still_sands=True)
-                    state.original_pause_time = pause_time
-                    pause_start = time.time()
-                    # Track Still Sands state for edge detection during long pauses
-                    was_in_still_sands = is_in_scheduled_pause_period() and state.scheduled_pause_control_wled
-                    while time.time() - pause_start < pause_time:
-                        state.pause_time_remaining = pause_start + pause_time - time.time()
-                        if state.skip_requested or state.stop_requested:
-                            if state.stop_requested:
-                                logger.info("Pause interrupted by stop request")
-                            else:
-                                logger.info("Pause interrupted by skip request")
-                            break
-                        # Monitor Still Sands transitions during pause
-                        in_still_sands = is_in_scheduled_pause_period() and state.scheduled_pause_control_wled
-                        if in_still_sands and not was_in_still_sands:
-                            # Entering Still Sands period — turn off LEDs
-                            logger.info("Still Sands period started during pause, turning off LEDs")
-                            if state.led_controller:
-                                await state.led_controller.set_power_async(0)
-                        elif not in_still_sands and was_in_still_sands:
-                            # Leaving Still Sands period — restore idle effect
-                            logger.info("Still Sands period ended during pause, restoring idle LED effect")
-                            await start_idle_led_timeout(check_still_sands=False)
-                        was_in_still_sands = in_still_sands
-                        await asyncio.sleep(1)
-                    # Clear both pause state vars immediately (so UI updates right away)
-                    state.pause_time_remaining = 0
-                    state.original_pause_time = None
+                    await _timed_pause(pause_time)
 
                 # Auto-home after pause time, before next clear pattern starts
                 # Only home if there's a next pattern and we haven't been stopped
@@ -1702,38 +1711,7 @@ async def run_theta_rho_files(file_paths, pause_time=0, clear_pattern=None, run_
             if run_mode in ("indefinite", "loop"):
                 logger.info(f"Playlist completed. Restarting as per '{run_mode}' run mode")
                 if pause_time > 0:
-                    # Clear current_playing_file to report "idle" state to MQTT/HA during pause
-                    state.current_playing_file = None
-                    # Trigger idle LED state during pause between playlist cycles
-                    await start_idle_led_timeout(check_still_sands=True)
-                    state.original_pause_time = pause_time
-                    pause_start = time.time()
-                    # Track Still Sands state for edge detection during long pauses
-                    was_in_still_sands = is_in_scheduled_pause_period() and state.scheduled_pause_control_wled
-                    while time.time() - pause_start < pause_time:
-                        state.pause_time_remaining = pause_start + pause_time - time.time()
-                        if state.skip_requested or state.stop_requested:
-                            if state.stop_requested:
-                                logger.info("Pause interrupted by stop request")
-                            else:
-                                logger.info("Pause interrupted by skip request")
-                            break
-                        # Monitor Still Sands transitions during pause
-                        in_still_sands = is_in_scheduled_pause_period() and state.scheduled_pause_control_wled
-                        if in_still_sands and not was_in_still_sands:
-                            # Entering Still Sands period — turn off LEDs
-                            logger.info("Still Sands period started during pause, turning off LEDs")
-                            if state.led_controller:
-                                await state.led_controller.set_power_async(0)
-                        elif not in_still_sands and was_in_still_sands:
-                            # Leaving Still Sands period — restore idle effect
-                            logger.info("Still Sands period ended during pause, restoring idle LED effect")
-                            await start_idle_led_timeout(check_still_sands=False)
-                        was_in_still_sands = in_still_sands
-                        await asyncio.sleep(1)
-                    # Clear both pause state vars immediately (so UI updates right away)
-                    state.pause_time_remaining = 0
-                    state.original_pause_time = None
+                    await _timed_pause(pause_time)
                 continue
             else:
                 logger.info("Playlist completed")

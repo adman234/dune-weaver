@@ -486,7 +486,8 @@ class AppState:
 
     def to_settings_dict(self):
         """Return a dictionary of user-configured settings (persisted intentionally)."""
-        # Base64-encode MQTT password for storage
+        # Base64 only keeps the MQTT password from being readable at a glance in
+        # settings.json. It is obfuscation, not encryption: anyone with the file can decode it.
         mqtt_password_encoded = ""
         if self.mqtt_password:
             mqtt_password_encoded = base64.b64encode(self.mqtt_password.encode('utf-8')).decode('ascii')
